@@ -27,3 +27,51 @@ Severity: {props.get("severity", "Unkown")}
 Description: {props.get("description", "No description available")}
 Instructions: {props.get("instruction", "No specific instructions provided")}
 """
+
+@mcp.tool()
+async def get_alerts(state: str) -> str:
+    url = f"{NWS_API_BASE}/alert/active/area/{state}"
+    data = await make_nws_request(url)
+
+    if not data or "features" not in data:
+        return "Unable to fetch alerts or no alerts found."
+    
+    if not data["features"]:
+        return "No active alerts for this state."
+    
+    alerts = [format_alert(feature) for feature in data["features"]]
+    return "\n---\n".join(alerts)
+@mcp.tool()
+async def get_forecast(latitude: float, longitude: float) -> str:
+    points_url = f"{NWS_API_BASE}/points/{latitude}, {longitude}"
+    points_data = await make_nws_request(points_url)
+
+    if not points_data:
+        return "Unable to fetch forecast for this location."
+    
+    forecast_url = points_data["properties"]["forecast"]
+    forecast_data = await make_nws_request(forecast_url)
+
+    if not forecast_data:
+        return "Unable to fetch detailed forecast."
+    
+    periods = forecast_data["properties"]["periods"]
+    forecasts = []
+    for period in periods[:5]:
+        forecast = f"""
+{period["name"]}:
+Temperature: {period["temperature"]}°{period["temperatureUnit"]}
+Wind: {period["windSpeed"]} {period["windDirection"]}
+Forecast: {period["detailedForecast"]}
+"""
+        forecasts.append(forecast)
+
+    return "\n---\n".join(forecasts)
+
+#Running the code
+def main():
+    mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    main()
